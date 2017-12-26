@@ -19,15 +19,25 @@ wss.on('connection', function connection(client, req) {
   const location = '../bit-baibai/log_files/DummyTrader_price_log.log'
   const tailer = new LogWatcher(location)
 
-  tailer.on('price', price => {
-    data = JSON.stringify(price)
+  tailer.on('prices', prices => {
+    data = JSON.stringify(prices)
     console.log('sending: ' + data)
-    client.send(data)
+    client.send(data, error => {
+      if (error) {
+        console.log('Error sending data: ' + error)
+      } else {
+        console.log('Sent data: ' + data)
+      }
+    })
   })
   tailer.watch()
 
   client.on('message', function incoming(message) {
     console.log('received: %s', message)
+  })
+
+  client.on('error', error => {
+    console.log(error)
   })
 })
 
