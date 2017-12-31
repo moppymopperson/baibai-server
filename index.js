@@ -16,20 +16,33 @@ const wss = new WebSocket.Server({ server })
 wss.on('connection', function connection(client, req) {
   //const location = url.parse(req.url, true)
   console.log('Client connected!')
-  const location = '../bit-baibai/log_files/DummyTrader_price_log.log'
-  const tailer = new LogWatcher(location)
+  const pricelog = '../bit-baibai/log_files/ErikPracticeTrader_price_log.log'
+  const tradelog =
+    '../bit-baibai/log_files/ErikPracticeTrader_trade_records.log'
+  const tailer = new LogWatcher(pricelog, tradelog)
 
   tailer.on('prices', prices => {
-    data = JSON.stringify(prices)
-    console.log('sending: ' + data)
+    data = JSON.stringify({ prices })
     client.send(data, error => {
       if (error) {
-        console.log('Error sending data: ' + error)
-      } else {
-        console.log('Sent data: ' + data)
+        console.log('Error sending prices: ' + error)
       }
     })
   })
+
+  tailer.on('trades', trades => {
+    data = JSON.stringify({ trades })
+    client.send(data, error => {
+      if (error) {
+        console.log('Error sending trades ' + error)
+      }
+    })
+  })
+
+  tailer.on('error', error => {
+    console.log('Trailer Error: ' + error)
+  })
+
   tailer.watch()
 
   client.on('message', function incoming(message) {

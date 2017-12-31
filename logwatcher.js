@@ -4,12 +4,15 @@ const Tail = require('tail').Tail
 const EventEmitter = require('events').EventEmitter
 
 module.exports = class LogWatcher extends EventEmitter {
-  constructor(filepath) {
+  constructor(pricelog, tradelog) {
     super()
-    this.filepath = filepath
+    this.pricelog = pricelog
+    this.tradelog = tradelog
+    this.tailPriceLog = this.tailPriceLog.bind(this)
+    this.tailTradeLog = this.tailTradeLog.bind(this)
   }
 
-  static parseLine(line) {
+  static parsePriceSample(line) {
     const date = new Date(line.slice(0, 19))
     const words = line.slice(22).split(' ')
     const currency = words[0]
@@ -18,49 +21,116 @@ module.exports = class LogWatcher extends EventEmitter {
     return { price, date, currency, priceCurrency }
   }
 
+  static parseTradeRecord(line) {
+    const type = line.includes('Bought') ? 'buy' : 'sell'
+    const date = new Date(line.slice(0, 19))
+
+    const sharesRegex = /(\d+\.*\d+)\sshares/g
+    const sharesMatch = sharesRegex.exec(line)
+    const shares = Number(sharesMatch[1])
+
+    const priceRegex = /price=(\d*.\d*)/g
+    const priceMatch = priceRegex.exec(line)
+    const price = Number(priceMatch[1])
+
+    const currencyRegex = /currency='(\w+)'/g
+    const currencyMatch = currencyRegex.exec(line)
+    const currency = currencyMatch[1]
+
+    const priceCurrencyRegex = /price_currency='(\w+)'/g
+    const priceCurrencyMatch = priceCurrencyRegex.exec(line)
+    const priceCurrency = priceCurrencyMatch[1]
+
+    return { type, shares, price, date, currency, priceCurrency }
+  }
+
   watch() {
     console.log('Began watching')
-    this.readLines((error, prices) => {
-      if (error) {
-        this.emit('error', error)
-      } else {
+    this.readPrices()
+      .then(prices => {
         this.emit('prices', prices)
-        this.tailLog()
-      }
-    })
+        this.tailPriceLog()
+      })
+      .catch(error => {
+        this.emit('error', error)
+      })
+
+    this.readTrades()
+      .then(trades => {
+        this.emit('trades', trades)
+        this.tailTradeLog()
+      })
+      .catch(error => {
+        this.emit('error', error)
+      })
   }
 
   unwatch() {
-    this._tail.unwatch()
+    this._priceTail.unwatch()
   }
 
-  readLines(done) {
-    let prices = []
-    const reader = LineReader.createInterface({
-      input: fs.createReadStream(this.filepath)
-    })
+  readPrices() {
+    return new Promise((resolve, reject) => {
+      let prices = []
+      const priceReader = LineReader.createInterface({
+        input: fs.createReadStream(this.pricelog)
+      })
 
-    reader.on('line', line => {
-      const priceSample = LogWatcher.parseLine(line)
-      prices.splice(0, 0, priceSample)
-    })
+      priceReader.on('line', line => {
+        const priceSample = LogWatcher.parsePriceSample(line)
+        prices.splice(0, 0, priceSample)
+      })
 
-    reader.on('error', error => {
-      done(error)
-    })
+      priceReader.on('error', error => {
+        reject(error)
+      })
 
-    reader.on('close', () => {
-      done(null, prices)
+      priceReader.on('close', () => {
+        resolve(prices)
+      })
     })
   }
 
-  tailLog() {
-    this._tail = new Tail(this.filepath, { fromBeginning: false })
-    this._tail.on('line', line => {
-      const priceSample = LogWatcher.parseLine(line)
+  readTrades() {
+    return new Promise((resolve, reject) => {
+      let trades = []
+      const tradeReader = LineReader.createInterface({
+        input: fs.createReadStream(this.tradelog)
+      })
+
+      tradeReader.on('line', line => {
+        const trade = LogWatcher.parseTradeRecord(line)
+        trades.splice(0, 0, trade)
+      })
+
+      tradeReader.on('error', error => {
+        reject(error)
+      })
+
+      tradeReader.on('close', () => {
+        resolve(trades)
+      })
+    })
+  }
+
+  tailPriceLog() {
+    this._priceTail = new Tail(this.pricelog, { fromBeginning: false })
+    this._priceTail.on('line', line => {
+      const priceSample = LogWatcher.parsePriceSample(line)
       this.emit('prices', [priceSample])
     })
-    this._tail.on('error', error => {
+    this._priceTail.on('error', error => {
+      this.emit('error', error)
+    })
+  }
+
+  tailTradeLog() {
+    this._tradeTail = new Tail(this.tradelog, { fromBeginning: false })
+    this._tradeTail.on('line', line => {
+      const trade = LogWatcher.parseTradeRecord(line)
+      this.emit('trades', [trade])
+    })
+    this._tradeTail.on('error', error => {
       this.emit('error', error)
     })
   }
