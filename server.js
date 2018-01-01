@@ -16,9 +16,8 @@ const wss = new WebSocket.Server({ server })
 wss.on('connection', function connection(client, req) {
   //const location = url.parse(req.url, true)
   console.log('Client connected!')
-  const pricelog = '../bit-baibai/log_files/ErikPracticeTrader_price_log.log'
-  const tradelog =
-    '../bit-baibai/log_files/ErikPracticeTrader_trade_records.log'
+  const pricelog = '/log_files/ErikPracticeTrader_price_log.log'
+  const tradelog = '/log_files/ErikPracticeTrader_trade_records.log'
   const tailer = new LogWatcher(pricelog, tradelog)
 
   tailer.on('prices', prices => {
