@@ -1,1 +1,6 @@
+# System
+.AppleDouble
+.vscode
+
+# Dependencies
 node_modules/
