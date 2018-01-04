@@ -2,6 +2,7 @@ const express = require('express')
 const http = require('http')
 const url = require('url')
 const WebSocket = require('ws')
+const sendHeartbeats = require('ws-heartbeats')
 const LogWatcher = require('./logwatcher')
 
 const app = express()
@@ -14,6 +15,8 @@ const server = http.createServer(app)
 const wss = new WebSocket.Server({ server })
 
 wss.on('connection', function connection(client, req) {
+  sendHeartbeats(client)
+
   //const location = url.parse(req.url, true)
   console.log('Client connected!')
   const pricelog = '/log_files/ErikPracticeTrader_price_log.log'
